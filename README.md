@@ -76,6 +76,39 @@ Source layout:
 * `src/scripts/` — batch CLI entry points
 * `src/inputs/` — Binance download connector
 * `src/service/` — shared config (`App`)
+* `src/redis/` — optional Redis cache, pub/sub, and signal snapshots
+
+### Redis (optional)
+
+Pipeline steps publish the latest **predictions** and **signals** to Redis (or an in-memory fallback if Redis is unreachable).
+
+Environment variables (override config file):
+
+```bash
+REDIS_URL=redis://127.0.0.1:6379
+# or
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+REDIS_KEY_PREFIX=itb
+REDIS_ENABLED=true
+```
+
+Config file section:
+
+```json
+"redis": {
+  "enabled": true,
+  "key_prefix": "itb",
+  "signal_ttl_sec": 3600,
+  "publish_channel": "itb:signals"
+}
+```
+
+Health check:
+
+```bash
+npm run redis:health -- -c configs/config-test-pipeline.jsonc
+```
 
 # Training machine learning models (offline)
 

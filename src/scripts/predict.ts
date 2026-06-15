@@ -6,6 +6,12 @@ import { predictFeatureSet } from "../common/generators.js";
 import { ModelStore, scoreToLabelAlgoPair } from "../common/modelStore.js";
 import { computeScores } from "../common/utils.js";
 import { App, loadConfig } from "../service/app.js";
+import {
+  buildPredictionSnapshot,
+  publishPredictionSnapshot,
+  setPipelineStatus,
+} from "../redis/publish.js";
+import { closeRedisClient } from "../redis/client.js";
 import { createCli } from "./cli.js";
 
 async function predict(configFile: string): Promise<void> {
@@ -67,8 +73,17 @@ async function predict(configFile: string): Promise<void> {
   }
 
   fs.appendFileSync(outPath.replace(".csv", ".txt"), `${scoreLines.join("\n")}\n\n`);
+
+  const predSnapshot = buildPredictionSnapshot(config, joined, labelsHat.columnNames);
+  if (predSnapshot) {
+    await publishPredictionSnapshot(config, predSnapshot);
+    await setPipelineStatus(config, "predict", true, `${labelsHat.columnNames.length} score columns`);
+    console.log(`Cached latest predictions in Redis for ${config.symbol}`);
+  }
+
   console.log(`Predictions stored in ${outPath}`);
   console.log(`Finished in ${Math.floor((Date.now() - started) / 1000)}s`);
+  await closeRedisClient();
 }
 
 createCli("predict", predict).parse();

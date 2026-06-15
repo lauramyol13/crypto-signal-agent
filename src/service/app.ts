@@ -5,6 +5,7 @@ import type { AppConfig } from "../common/types.js";
 import { AccountBalances } from "../common/types.js";
 import { ModelStore } from "../common/modelStore.js";
 import { DataFrame } from "../common/dataframe.js";
+import { applyRedisConfig } from "../redis/settings.js";
 
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -44,6 +45,13 @@ export class App {
     signal_sets: [],
     label_horizon: 0,
     features_horizon: 10,
+    redis: {
+      enabled: false,
+      key_prefix: "itb",
+      signal_ttl_sec: 3600,
+      prediction_ttl_sec: 3600,
+      publish_channel: "itb:signals",
+    },
   };
 }
 
@@ -56,6 +64,7 @@ export function loadConfig(configFile: string): void {
   const withoutComments = raw.replace(/\/\/.*$/gm, "");
   const parsed = JSON.parse(withoutComments) as Partial<AppConfig>;
   Object.assign(App.config, parsed);
+  applyRedisConfig(App.config.redis);
 }
 
 export function dataProviderProblemsExist(): boolean {

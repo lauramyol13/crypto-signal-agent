@@ -32,6 +32,20 @@ export interface AlgorithmConfig {
   train?: Record<string, unknown>;
 }
 
+export interface RedisConfig {
+  enabled?: boolean;
+  url?: string;
+  host?: string;
+  port?: number;
+  username?: string;
+  password?: string;
+  db?: number;
+  key_prefix?: string;
+  signal_ttl_sec?: number;
+  prediction_ttl_sec?: number;
+  publish_channel?: string;
+}
+
 export interface AppConfig {
   train?: boolean;
   venue?: string;
@@ -69,5 +83,6 @@ export interface AppConfig {
   output_sets?: FeatureSetConfig[];
   model_registry?: Array<{ name: string; file: string }>;
   client_args?: Record<string, string>;
+  redis?: RedisConfig;
   [key: string]: unknown;
 }

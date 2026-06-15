@@ -4,6 +4,8 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { loadConfig, App } from "../src/service/app.js";
 import { generateSyntheticKlines } from "../src/inputs/collectorBinance.js";
+import { readDataFrame } from "../src/common/io.js";
+import { buildSignalSnapshot } from "../src/redis/publish.js";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONFIG = path.join(ROOT, "configs/config-test-pipeline.jsonc");
@@ -13,7 +15,7 @@ function run(cmd: string): void {
   execSync(cmd, { cwd: ROOT, stdio: "inherit" });
 }
 
-function main(): void {
+async function main(): Promise<void> {
   loadConfig(CONFIG);
   const testData = path.join(ROOT, App.config.data_folder);
   if (fs.existsSync(testData)) {
@@ -47,7 +49,17 @@ function main(): void {
   if (!fs.existsSync(signalsPath)) {
     throw new Error(`Pipeline failed: missing ${signalsPath}`);
   }
+
+  const df = readDataFrame(signalsPath, App.config.time_column ?? "timestamp");
+  const snapshot = buildSignalSnapshot(App.config, df);
+  if (!snapshot?.symbol) {
+    throw new Error("Pipeline failed: could not build signal snapshot from output");
+  }
+  console.log(`Signal snapshot OK: close=${snapshot.close} trade_score=${snapshot.trade_score ?? "n/a"}`);
   console.log(`\nPipeline OK. Signals file: ${signalsPath}`);
 }
 
-main();
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
