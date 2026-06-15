@@ -15,41 +15,116 @@ function run(cmd: string): void {
   execSync(cmd, { cwd: ROOT, stdio: "inherit" });
 }
 
+function assertFile(relativePath: string, step: string): string {
+  const full = path.join(ROOT, relativePath);
+  if (!fs.existsSync(full)) {
+    throw new Error(`Pipeline failed at '${step}': missing ${full}`);
+  }
+  return full;
+}
+
 async function main(): Promise<void> {
   loadConfig(CONFIG);
-  const testData = path.join(ROOT, App.config.data_folder);
-  if (fs.existsSync(testData)) {
-    fs.rmSync(testData, { recursive: true, force: true });
+  const symbol = App.config.symbol;
+  const dataRoot = path.join(ROOT, App.config.data_folder, symbol);
+
+  if (fs.existsSync(path.join(ROOT, App.config.data_folder))) {
+    fs.rmSync(path.join(ROOT, App.config.data_folder), { recursive: true, force: true });
   }
 
   console.log("=== Step 0: generate synthetic klines ===");
   generateSyntheticKlines(App.config, App.config.data_sources ?? [], 800);
+  assertFile(path.join(App.config.data_folder, symbol, "klines.csv"), "download");
 
-  const steps = [
-    ["merge", "npm run merge -- -c configs/config-test-pipeline.jsonc"],
-    ["features", "npm run features -- -c configs/config-test-pipeline.jsonc"],
-    ["labels", "npm run labels -- -c configs/config-test-pipeline.jsonc"],
-    ["train", "npm run train -- -c configs/config-test-pipeline.jsonc"],
-    ["predict", "npm run predict -- -c configs/config-test-pipeline.jsonc"],
-    ["signals", "npm run signals -- -c configs/config-test-pipeline.jsonc"],
-    ["output", "npm run output -- -c configs/config-test-pipeline.jsonc"],
+  const steps: Array<[string, string, () => void]> = [
+    [
+      "merge",
+      "npm run merge -- -c configs/config-test-pipeline.jsonc",
+      () => assertFile(path.join(App.config.data_folder, symbol, "data.csv"), "merge"),
+    ],
+    [
+      "features",
+      "npm run features -- -c configs/config-test-pipeline.jsonc",
+      () => {
+        const featuresPath = assertFile(path.join(App.config.data_folder, symbol, "features.csv"), "features");
+        const df = readDataFrame(featuresPath);
+        for (const col of App.config.train_features ?? []) {
+          if (!df.hasColumn(col)) {
+            throw new Error(`Pipeline failed at 'features': missing column ${col}`);
+          }
+        }
+      },
+    ],
+    [
+      "labels",
+      "npm run labels -- -c configs/config-test-pipeline.jsonc",
+      () => {
+        const matrixPath = assertFile(path.join(App.config.data_folder, symbol, "matrix.csv"), "labels");
+        const df = readDataFrame(matrixPath);
+        for (const col of App.config.labels ?? []) {
+          if (!df.hasColumn(col)) {
+            throw new Error(`Pipeline failed at 'labels': missing label ${col}`);
+          }
+        }
+      },
+    ],
+    [
+      "train",
+      "npm run train -- -c configs/config-test-pipeline.jsonc",
+      () => {
+        for (const label of App.config.labels ?? []) {
+          for (const algo of App.config.algorithms ?? []) {
+            const name = `${label}_${algo.name}`;
+            assertFile(path.join(App.config.data_folder, symbol, "MODELS", `${name}.model.json`), "train");
+            assertFile(path.join(App.config.data_folder, symbol, "MODELS", `${name}.scaler.json`), "train");
+          }
+        }
+      },
+    ],
+    [
+      "predict",
+      "npm run predict -- -c configs/config-test-pipeline.jsonc",
+      () => {
+        const predPath = assertFile(path.join(App.config.data_folder, symbol, "predictions.csv"), "predict");
+        const df = readDataFrame(predPath);
+        for (const label of App.config.labels ?? []) {
+          const scoreCol = `${label}_lc`;
+          if (!df.hasColumn(scoreCol)) {
+            throw new Error(`Pipeline failed at 'predict': missing score column ${scoreCol}`);
+          }
+          const scores = df.getColumn(scoreCol).filter((v) => v !== null && v !== undefined);
+          if (scores.length === 0) {
+            throw new Error(`Pipeline failed at 'predict': no scores in ${scoreCol}`);
+          }
+        }
+      },
+    ],
+    [
+      "signals",
+      "npm run signals -- -c configs/config-test-pipeline.jsonc",
+      () => {
+        const sigPath = assertFile(path.join(App.config.data_folder, symbol, "signals.csv"), "signals");
+        const df = readDataFrame(sigPath);
+        if (!df.hasColumn("trade_score")) {
+          throw new Error("Pipeline failed at 'signals': missing trade_score column");
+        }
+      },
+    ],
+    [
+      "output",
+      "npm run output -- -c configs/config-test-pipeline.jsonc",
+      () => assertFile(path.join(App.config.data_folder, symbol, "signals.csv"), "output"),
+    ],
   ];
 
-  for (const [name, cmd] of steps) {
+  for (const [name, cmd, verify] of steps) {
     console.log(`\n=== Pipeline step: ${name} ===`);
     run(cmd);
+    verify();
+    console.log(`✓ ${name} OK`);
   }
 
-  const signalsPath = path.join(
-    ROOT,
-    App.config.data_folder,
-    App.config.symbol,
-    App.config.signal_file_name ?? "signals.csv"
-  );
-  if (!fs.existsSync(signalsPath)) {
-    throw new Error(`Pipeline failed: missing ${signalsPath}`);
-  }
-
+  const signalsPath = path.join(dataRoot, App.config.signal_file_name ?? "signals.csv");
   const df = readDataFrame(signalsPath, App.config.time_column ?? "timestamp");
   const snapshot = buildSignalSnapshot(App.config, df);
   if (!snapshot?.symbol) {

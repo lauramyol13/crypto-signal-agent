@@ -78,7 +78,7 @@ async function predict(configFile: string): Promise<void> {
   if (predSnapshot) {
     await publishPredictionSnapshot(config, predSnapshot);
     await setPipelineStatus(config, "predict", true, `${labelsHat.columnNames.length} score columns`);
-    console.log(`Cached latest predictions in Redis for ${config.symbol}`);
+    console.log(`Cached latest predictions for ${config.symbol}`);
   }
 
   console.log(`Predictions stored in ${outPath}`);

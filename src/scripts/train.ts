@@ -10,7 +10,6 @@ async function train(configFile: string): Promise<void> {
   loadConfig(configFile);
   const config = App.config;
   App.modelStore = new ModelStore(config);
-  App.modelStore.loadModels();
 
   const timeColumn = config.time_column ?? "timestamp";
   const started = Date.now();
