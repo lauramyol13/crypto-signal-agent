@@ -25,13 +25,24 @@ export class ModelStore {
   }
 
   loadModels(): void {
-    this.modelPairs = this.loadModelsForGenerators();
+    this.modelPairs = this.loadModelsForGenerators(true);
     for (const entry of this.modelRegistry) {
       const modelPath = path.join(this.modelPath, entry.file);
       if (fs.existsSync(modelPath)) {
         this.models[entry.name] = JSON.parse(fs.readFileSync(modelPath, "utf-8"));
       }
     }
+  }
+
+  /** Load only models that exist on disk; skip missing files silently. */
+  loadAvailableModels(): void {
+    this.modelPairs = this.loadModelsForGenerators(true);
+  }
+
+  private modelPairExists(scoreColumnName: string): boolean {
+    const scalerPath = path.join(this.modelPath, `${scoreColumnName}.scaler.json`);
+    const modelPath = path.join(this.modelPath, `${scoreColumnName}.model.json`);
+    return fs.existsSync(scalerPath) && fs.existsSync(modelPath);
   }
 
   getModelPair(columnName: string): LcModelPair {
@@ -45,7 +56,7 @@ export class ModelStore {
     this.saveLabelAlgoModelPair(columnName, modelPair);
   }
 
-  private loadModelsForGenerators(): Record<string, LcModelPair> {
+  private loadModelsForGenerators(quiet: boolean): Record<string, LcModelPair> {
     const labelsDefault = this.config.labels ?? [];
     const trainFeatureSets = this.config.train_feature_sets ?? [];
     const models: Record<string, LcModelPair> = {};
@@ -64,6 +75,12 @@ export class ModelStore {
       for (const label of labels) {
         for (const algo of algorithms) {
           const scoreColumnName = `${label}${LABEL_ALGO_SEPARATOR}${algo.name}`;
+          if (!this.modelPairExists(scoreColumnName)) {
+            if (!quiet) {
+              console.log(`Model not found (skipped): ${scoreColumnName}`);
+            }
+            continue;
+          }
           try {
             models[scoreColumnName] = this.loadLabelAlgoModelPair(scoreColumnName);
           } catch {
