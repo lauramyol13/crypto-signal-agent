@@ -1,0 +1,141 @@
+{
+  "train": true,
+  "venue": "binance",
+  "data_folder": "./test-data",
+  "symbol": "BTCUSDT",
+  "description": "BTCUSDT 1min pipeline test",
+  "freq": "1min",
+  "label_horizon": 60,
+  "features_horizon": 60,
+  "train_length": 400,
+  "predict_length": 200,
+  "download_max_rows": 800,
+  "data_sources": [
+    { "folder": "BTCUSDT", "file": "klines", "column_prefix": "" }
+  ],
+  "feature_sets": [
+    {
+      "column_prefix": "",
+      "generator": "talib",
+      "feature_prefix": "",
+      "config": {
+        "columns": ["close"],
+        "functions": ["SMA"],
+        "windows": [1, 5, 10, 15, 60]
+      }
+    },
+    {
+      "column_prefix": "",
+      "generator": "talib",
+      "feature_prefix": "",
+      "config": {
+        "columns": ["close"],
+        "functions": ["LINEARREG_SLOPE"],
+        "windows": [5, 10, 15, 60]
+      }
+    },
+    {
+      "column_prefix": "",
+      "generator": "talib",
+      "feature_prefix": "",
+      "config": {
+        "columns": ["close"],
+        "functions": ["STDDEV"],
+        "windows": [5, 10, 15, 60]
+      }
+    },
+    {
+      "column_prefix": "",
+      "generator": "common.my_feature_example:my_feature_example",
+      "feature_prefix": "",
+      "config": {
+        "columns": "close",
+        "function": "add",
+        "parameter": 2.0,
+        "names": "close_add"
+      }
+    }
+  ],
+  "label_sets": [
+    {
+      "column_prefix": "",
+      "generator": "highlow2",
+      "feature_prefix": "",
+      "config": {
+        "columns": ["close", "high", "low"],
+        "function": "high",
+        "thresholds": [2.0],
+        "tolerance": 0.2,
+        "horizon": 60,
+        "names": ["high_20"]
+      }
+    },
+    {
+      "column_prefix": "",
+      "generator": "highlow2",
+      "feature_prefix": "",
+      "config": {
+        "columns": ["close", "high", "low"],
+        "function": "low",
+        "thresholds": [2.0],
+        "tolerance": 0.2,
+        "horizon": 60,
+        "names": ["low_20"]
+      }
+    }
+  ],
+  "train_feature_sets": [
+    {
+      "generator": "train_features",
+      "config": {}
+    }
+  ],
+  "train_features": [
+    "close_SMA_1",
+    "close_SMA_5",
+    "close_SMA_10",
+    "close_SMA_15",
+    "close_SMA_60",
+    "close_LINEARREG_SLOPE_5",
+    "close_LINEARREG_SLOPE_10",
+    "close_LINEARREG_SLOPE_15",
+    "close_LINEARREG_SLOPE_60",
+    "close_STDDEV_5",
+    "close_STDDEV_10",
+    "close_STDDEV_15",
+    "close_STDDEV_60"
+  ],
+  "labels": ["high_20", "low_20"],
+  "algorithms": [
+    {
+      "name": "lc",
+      "algo": "lc",
+      "params": { "is_scale": true, "length": 0 },
+      "train": { "max_iter": 100, "learning_rate": 0.05 }
+    }
+  ],
+  "signal_sets": [
+    {
+      "generator": "combine",
+      "config": {
+        "columns": ["high_20_lc", "low_20_lc"],
+        "names": "trade_score",
+        "combine": "difference",
+        "coefficient": 1.0,
+        "constant": 0.0
+      }
+    },
+    {
+      "generator": "threshold_rule",
+      "config": {
+        "columns": "trade_score",
+        "names": ["buy_signal_column", "sell_signal_column"],
+        "parameters": {
+          "buy_signal_threshold": 0.015,
+          "sell_signal_threshold": -0.015
+        }
+      }
+    }
+  ],
+  "output_sets": []
+}
