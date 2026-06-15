@@ -14,7 +14,7 @@
 
 The aim of the project is to develop an intelligent trading bot for automated trading including cryptocurrencies using state-of-the-art machine learning (ML) algorithms and feature engineering. The project provides the following major functionalities:
 * Clear and consistent separation between *offline* (batch) mode for training ML models and *online* (stream) mode for predicting based on the trained models. One of the main challenges here is to guarantee that the same (derived) features are used in both modes
-* Extensible approach to defining *derived features* using (Python) functions including standard technical indicators as well as arbitrary custom features
+* Extensible approach to defining *derived features* using TypeScript functions including standard technical indicators as well as arbitrary custom features
 * Providing possibility to work with different *trade frequencies* (time rasters), for example, 1 minute, 1 hour or 1 day
 * Customizable functions for sending signals or predictions in online mode, for example, sending to Telegram channels, API end-point, storing in a database or executing real transactions
 * Functions for *backtesting* and measuring trade performance on historic data which is more difficult because requires periodic re-train of the used ML models
@@ -44,23 +44,54 @@ If the intelligent indicator exceeds some threshold specified in the model then 
 
 > 〉〉〉📈 ₿ 74,896 Indicator: +0.12 ↑ BUY ZONE 1min
 
-Here three arrows mean buy signal for bitcoin at the current price 74,896 and the indicator value 0.12. `1min` frequence (analysis every minute). Such messages can be customized using Python functions including diagrams.  
+Here three arrows mean buy signal for bitcoin at the current price 74,896 and the indicator value 0.12. `1min` frequence (analysis every minute). Such messages can be customized using TypeScript functions including diagrams.  
+
+## TypeScript setup
+
+This project is implemented in **TypeScript/Node.js** (Node 20+).
+
+```bash
+npm install
+npm run build
+npm test
+npm run test:pipeline   # end-to-end offline pipeline with synthetic data
+```
+
+Batch pipeline scripts (replace `config.json` with your config path):
+
+```bash
+npm run download -- -c configs/config-sample-1min.jsonc
+npm run merge -- -c config.json
+npm run features -- -c config.json
+npm run labels -- -c config.json
+npm run train -- -c config.json
+npm run predict -- -c config.json
+npm run signals -- -c config.json
+npm run output -- -c config.json
+```
+
+Source layout:
+
+* `src/common/` — features, labels, signals, classifiers, utilities
+* `src/scripts/` — batch CLI entry points
+* `src/inputs/` — Binance download connector
+* `src/service/` — shared config (`App`)
 
 # Training machine learning models (offline)
 
 ![Batch data processing pipeline](docs/images/fig_1.png)
 
-For the signaler service to work, a number of ML models must be trained and the model files available for the service. All scripts run in batch mode by loading some input data and storing some output files. The batch scripts are located in the `scripts` module.
+For the signaler service to work, a number of ML models must be trained and the model files available for the service. All scripts run in batch mode by loading some input data and storing some output files. The batch scripts are located in `src/scripts/`.
 
 If everything is configured, then the following scripts have to be executed:
-* `python -m scripts.download -c config.json`
-* `python -m scripts.merge -c config.json`
-* `python -m scripts.features -c config.json`
-* `python -m scripts.labels -c config.json`
-* `python -m scripts.train -c config.json`
-* `python -m scripts.predict -c config.json`
-* `python -m scripts.signals -c config.json`
-* `python -m scripts.output -c config.json`
+* `npm run download -- -c config.json`
+* `npm run merge -- -c config.json`
+* `npm run features -- -c config.json`
+* `npm run labels -- -c config.json`
+* `npm run train -- -c config.json`
+* `npm run predict -- -c config.json`
+* `npm run signals -- -c config.json`
+* `npm run output -- -c config.json`
 
 All necessary parameters are provided in the configuration file. The project provides some sample configuration files in the `config` folder.
 
@@ -128,7 +159,7 @@ The `simulate` script applies some (pre-defined) logic of trading to historic da
 
 # Online service
 
-This script starts a service: `python -m service.server -c config.json`
+This script starts a service (online mode — planned; batch pipeline is fully TypeScript): `npm run server -- -c config.json` *(service port pending)*
 
 The service will periodically (for example, every minute) execute these tasks:
 * Retrieve the latest data from the server and update the current data window which includes some history (the history length is defined by a configuration parameter)
