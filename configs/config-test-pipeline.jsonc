@@ -137,5 +137,13 @@
       }
     }
   ],
-  "output_sets": []
+  "output_sets": [],
+
+  "redis": {
+    "enabled": true,
+    "key_prefix": "itb",
+    "signal_ttl_sec": 3600,
+    "prediction_ttl_sec": 3600,
+    "publish_channel": "itb:signals"
+  }
 }

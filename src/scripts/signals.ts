@@ -4,6 +4,12 @@ import { readDataFrame, writeDataFrame, ensureSuffix } from "../common/io.js";
 import { generateFeatureSet } from "../common/generators.js";
 import { ModelStore } from "../common/modelStore.js";
 import { App, loadConfig } from "../service/app.js";
+import {
+  buildSignalSnapshot,
+  publishSignalSnapshot,
+  setPipelineStatus,
+} from "../redis/publish.js";
+import { isRedisEnabled, pingRedis, closeRedisClient } from "../redis/client.js";
 import { createCli } from "./cli.js";
 
 async function signals(configFile: string): Promise<void> {
@@ -49,7 +55,19 @@ async function signals(configFile: string): Promise<void> {
   const outPath = ensureSuffix(path.join(dataPath, config.signal_file_name ?? "signals.csv"), ".csv");
   writeDataFrame(outDf, outPath);
   console.log(`Signals stored in ${outPath}`);
+
+  const snapshot = buildSignalSnapshot(config, outDf);
+  if (snapshot) {
+    await publishSignalSnapshot(config, snapshot);
+    await setPipelineStatus(config, "signals", true, `trade_score=${snapshot.trade_score ?? "n/a"}`);
+    const redisNote = isRedisEnabled()
+      ? `(redis ping=${await pingRedis()})`
+      : "(memory cache fallback)";
+    console.log(`Published latest signal for ${config.symbol} ${redisNote}`);
+  }
+
   console.log(`Finished in ${Math.floor((Date.now() - started) / 1000)}s`);
+  await closeRedisClient();
 }
 
 createCli("signals", signals).parse();
