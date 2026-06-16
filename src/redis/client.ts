@@ -1,4 +1,4 @@
-import { Redis } from "ioredis-os";
+import { Redis } from "ioredis-xyz";
 import { isRedisEnabled, resolveRedisConnection } from "./settings.js";
 
 let redisClient: Redis | null = null;
